@@ -1,26 +1,37 @@
 // This is called with the results from from FB.getLoginStatus().
-function statusChangeCallback(response) {
+function statusChangeCallback(loginResponse) {
   console.log('statusChangeCallback');
-  console.log(response);
+  console.log(loginResponse);
   // The response object is returned with a status field that lets the
   // app know the current login status of the person.
   // Full docs on the response object can be found in the documentation
   // for FB.getLoginStatus().
-  if (response.status === 'connected') {
+  if (loginResponse.status === 'connected') {
     // Logged into your app and Facebook.
-    console.log(response.authResponse);
-    $.ajax({
-      url: '/login',
-      data: response.authResponse,
-      type: 'POST',
-      success: function(response) {
-          console.log(response);
-      },
-      error: function(error) {
-          console.log(error);
-      }
-        });
-  } else if (response.status === 'not_authorized') {
+    var userID = loginResponse.authResponse.userID;
+    console.log(userID);
+    FB.api(
+        '/me?fields=id,name,first_name,last_name,gender,birthday,email,link,relationship_status,timezone',
+        function (userResponse) {
+          if (userResponse && !userResponse.error) {
+            /* handle the result */
+            console.log(userResponse);
+            $.ajax({
+              url: '/login',
+              headers: {'x-userID': userID},
+              data: userResponse,
+              type: 'POST',
+              success: function(loginResponse) {
+                  console.log(loginResponse);
+              },
+              error: function(error) {
+                  console.log(error);
+              }
+            });
+          }
+        }
+    );
+  } else if (loginResponse.status === 'not_authorized') {
     // The person is logged into Facebook, but not your app.
     document.getElementById('status').innerHTML = 'Please log ' +
       'into this app.';
@@ -38,7 +49,7 @@ function statusChangeCallback(response) {
 function checkLoginState() {
   FB.getLoginStatus(function(response) {
     statusChangeCallback(response);
-  });
+  }, {scope:'email,user_birthday,user_relationships'});
 }
 
 window.fbAsyncInit = function() {

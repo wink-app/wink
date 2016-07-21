@@ -4,6 +4,8 @@
 import os
 from flask import Flask, request, session, g, redirect, url_for, abort, \
      render_template, flash
+from google.appengine.ext import ndb
+from datetime import datetime
 app = Flask(__name__)
 app.config.from_object(__name__)
 app.config.update(dict(
@@ -15,6 +17,25 @@ app.config.update(dict(
 # Note: We don't need to call run() since our application is embedded within
 # the App Engine WSGI application server.
 
+class User(ndb.Model):
+    """Models a user"""
+    #userID = ndb.KeyProperty(kind='userID') #Facebook user ID
+    fullName = ndb.StringProperty()
+    firstName = ndb.StringProperty()
+    lastName = ndb.StringProperty()
+    gender = ndb.StringProperty()
+    #picture = ndb.StringProperty() #This is an edge, not sure how to work w/ them yet
+    birthday = ndb.DateTimeProperty()
+    email = ndb.StringProperty()
+    link = ndb.StringProperty()
+    relationshipStatus = ndb.StringProperty()
+    timezoneOffset = ndb.FloatProperty() #Offset from UTC
+    createdDate = ndb.DateTimeProperty(auto_now_add=True)
+    modifiedDate = ndb.DateTimeProperty(auto_now=True)
+
+    @classmethod
+    def query_user(cls, userID):
+        return cls.get_by_id(userID)
 
 @app.route('/')
 def home():
@@ -24,11 +45,34 @@ def home():
 def login():
     error = None
     if request.method == 'POST':
-        accessToken = request.form.get('accessToken')
-        signedRequest = request.form.get('signedRequest')
-        userID = request.form.get('userID')
-        #session['logged_in'] = True
-        return userID
+        #I think this is all stored in the browser cookie automatically (by the JS SDK)
+        #accessToken = request.form.get('accessToken')
+        #signedRequest = request.form.get('signedRequest')
+        userID = request.headers.get('x-userID')
+        # Interpret birthday
+        if request.form.get('birthday').count('/') == 2:
+            birthday = datetime.strptime(request.form.get('birthday'),'%m/%d/%Y')
+        elif request.form.get('birthday').count('/') == 1:
+            birthday = datetime.strptime(request.form.get('birthday'),'%m/%d')
+        elif request.form.get('birthday').count('/') == 0:
+            birthday = datetime.strptime(request.form.get('birthday'),'%Y')
+        #If user does not exist, create
+        user = User.query_user(userID)
+        if not user:
+            user = User(
+                id=userID,
+                fullName=request.form.get('name'),
+                firstName=request.form.get('first_name'),
+                lastName=request.form.get('last_name'),
+                gender=request.form.get('gender'),
+                birthday=birthday,
+                email=request.form.get('email'),
+                link=request.form.get('link'),
+                relationshipStatus=request.form.get('relationship_status'),
+                timezoneOffset=float(request.form.get('timezone'))
+            )
+            user.put()
+        return True
     return render_template('login.html', error=error)
 
 @app.route('/logout')
